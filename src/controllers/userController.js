@@ -1,22 +1,19 @@
-const pool = require('../database/connection');
+const knex = require("../database/connection");
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const senhaJwt = require('../passwordJWT');
+require("dotenv").config
 
 module.exports = {
     registerUser: async (req, res) => {
         const { nome, email, senha } = req.body
         try {
-            const senhaCriptografada = await bcrypt.hash(senha, 10)
-            const validacaoEmail = `select email from usuarios where email = $1`
-            const { rowCount } = await pool.query(validacaoEmail, [email])
-            if (rowCount > 0) {
+            const encryptedPassword = await bcrypt.hash(senha, 10)
+            const emailValidation = await knex('usuarios').where({ email });
+            if (emailValidation.length > 0) {
                 return res.status(400).json({ mensagem: 'Já existe usuário cadastrado com o e-mail informado.' })
             }
-            const { rows } = await pool.query(`insert into usuarios(nome, email, senha) values($1,$2,$3) returning *`, [nome, email, senhaCriptografada])
-            const { senha: _, ...user } = rows[0]
-            return res.status(201).json(user)
-
+            const record = await knex('usuarios').insert({ nome, email, senha: encryptedPassword }).returning(['id', 'nome', 'email']);
+            return res.status(201).json(record[0]);
         } catch (error) {
             return res.status(500).json({ mensagem: `${error}` })
         }
@@ -25,19 +22,17 @@ module.exports = {
     loginUser: async (req, res) => {
         const { email, senha } = req.body
         try {
-            const query = `select * from usuarios where email = $1`
-            const { rowCount, rows } = await pool.query(query, [email])
-            if (rowCount === 0) {
-                return res.status(400).json({ mensagem: 'Usuário e/ou senha inválido(s).' })
+            const emailValidation = await knex('usuarios').where({ email });
+            if (emailValidation.length < 1) {
+                return res.status(400).json({ mensagem: 'Email e/ou senha inválido(s).' })
             }
-            const { senha: senhaUsuario, ...usuario } = rows[0]
-            const validacaoSenha = await bcrypt.compare(senha, senhaUsuario)
-            if (!validacaoSenha) {
-                return res.status(400).json({ mensagem: 'Usuário e/ou senha inválido(s).' })
+            const { senha: userPassword, ...usuario } = emailValidation[0];
+            const passwordValidation = await bcrypt.compare(senha, userPassword);
+            if (!passwordValidation) {
+                return res.status(400).json({ mensagem: 'Email e/ou senha inválido(s).' })
             }
-            const token = jwt.sign({ id: usuario.id }, senhaJwt, { expiresIn: '8h' });
-
-            return res.json({ usuario, token })
+            const token = jwt.sign({ id: usuario.id }, process.env.PASSWORDJWT, { expiresIn: '8h' });
+            return res.json({ usuario, token });
         } catch (error) {
             return res.status(500).json({ mensagem: `{error}` })
         }
@@ -46,13 +41,12 @@ module.exports = {
     detailUser: async (req, res) => {
         const { id } = req.usuario;
         try {
-            const { rowCount, rows } = await pool.query(`select * from usuarios where id = $1`, [id])
-            if (rowCount === 0) {
-                return res.status(404).json({ mensagem: 'usuario não encontrado' })
+            const user = await knex('usuarios').where({ id });
+            if (user.length < 1) {
+                return res.status(404).json({ mensagem: 'Usuario não encontrado' })
             }
-            const { senha, ...user } = rows[0]
-            return res.status(200).json(user)
-
+            const { senha, ...usuario } = user[0];
+            return res.status(200).json(usuario)
         } catch (error) {
             return res.status(500).json({ mensagem: `${error}` })
         }
@@ -60,17 +54,15 @@ module.exports = {
 
     updateUser: async (req, res) => {
         const { nome, email, senha } = req.body
+        const { id } = req.usuario;
         try {
-            const senhaCriptografada = await bcrypt.hash(senha, 10)
-            const validacaoEmail = `select * from usuarios where email = $1`
-            const { rowCount } = await pool.query(validacaoEmail, [email])
-            if (rowCount === 0) {
-                const { rows } = await pool.query(`update usuarios set nome = $1, email = $2, senha = $3 where id = $4 returning *`
-                    , [nome, email, senhaCriptografada, req.usuario.id])
-                const { senha: _, ...user } = rows[0]
-                return res.status(204).json()
+            const encryptedPassword = await bcrypt.hash(senha, 10)
+            const emailValidation = await knex('usuarios').where({ email });
+            if (emailValidation.length < 1) {
+                const record = await knex('usuarios').update({ nome, email, senha: encryptedPassword }).where({ id }).returning(['id', 'nome', 'email']);
+                return res.status(204).json();
             }
-            return res.status(400).json({ mensagem: 'O email informado já estar sendo utilizado por outro usuário' })
+            return res.status(400).json({ mensagem: 'O email informado já estar sendo utilizado por outro usuário' });
         } catch (error) {
             return res.status(500).json({ mensagem: `${error}` })
         }
