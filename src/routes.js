@@ -1,21 +1,23 @@
 const route = require("express").Router();
-const userController = require("./controllers/userController");
-const middlewareAuthentication = require("./middlewares/authentication");
-const transactionsController = require("./controllers/transactionsController");
-const categoryController = require("./controllers/categoryController")
-const middlewareValidations = require("./middlewares/validations")
+const user = require("./controllers/userController");
+const login = require('./controllers/loginController');
+const authenticationJWT = require("./middlewares/authenticationJWT");
+const transaction = require("./controllers/transactionsController");
+const category = require("./controllers/categoryController");
+const requestValidations = require('./middlewares/requestsValidations');
+const { schemaUser, schemaLogin, schemaTransactions } = require('./schema/squema');
 
-route.post('/usuario', middlewareValidations.validationRegisterUser, userController.registerUser);
-route.post('/login', middlewareValidations.validationLoginUser, userController.loginUser);
-route.use(middlewareAuthentication.tokenValidation);
-route.get('/usuario', userController.detailUser);
-route.put('/usuario', middlewareValidations.validationRegisterUser, userController.updateUser);
-route.get('/categoria', categoryController.listCategories);
-route.get('/transacao', transactionsController.listTransactions);
-route.get('/transacao/extrato', transactionsController.getExtract);
-route.get('/transacao/:id', transactionsController.detailTransactions);
-route.post('/transacao', middlewareValidations.validationRegisterTransactions, transactionsController.registerTransactions);
-route.put('/transacao/:id', middlewareValidations.validationUpdateTransactions, transactionsController.updateTransactions);
-route.delete('/transacao/:id', transactionsController.deleteTransactions);
+route.post('/usuario', requestValidations(schemaUser), user.registerUser);
+route.post('/login', requestValidations(schemaLogin), login.loginUser);
+route.use(authenticationJWT.tokenValidation);
+route.get('/usuario', user.obtainUser);
+route.put('/usuario', requestValidations(schemaUser), user.updateUser);
+route.get('/categoria', category.listCategories);
+route.get('/transacao', transaction.listTransactions);
+route.get('/transacao/extrato', transaction.getExtract);
+route.get('/transacao/:id', transaction.obtainTransactions);
+route.post('/transacao', requestValidations(schemaTransactions), transaction.registerTransactions);
+route.put('/transacao/:id', requestValidations(schemaTransactions), transaction.updateTransactions);
+route.delete('/transacao/:id', transaction.deleteTransactions);
 
 module.exports = route;

@@ -44,7 +44,7 @@ module.exports = {
         }
     },
 
-    detailTransactions: async (req, res) => {
+    obtainTransactions: async (req, res) => {
         const { id } = req.usuario;
         const identificador = Number(req.params.id);
         try {
